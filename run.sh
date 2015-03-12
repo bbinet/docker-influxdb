@@ -149,7 +149,7 @@ else
                 dbuseradmin_var="${db}_${user}_ADMIN"
                 dbuserreadfrom_var="${db}_${user}_READFROM"
                 dbuserwriteto_var="${db}_${user}_WRITETO"
-                create_dbuser $db $user ${!dbuserpassword_var} ${!dbuseradmin_var} ${!dbuserreadfrom_var} ${!dbuserwriteto_var}
+                create_dbuser $db $user ${!dbuserpassword_var} ${!dbuseradmin_var:-"false"} ${!dbuserreadfrom_var:-".*"} ${!dbuserwriteto_var:-"^$"}
             done
         fi
     done
