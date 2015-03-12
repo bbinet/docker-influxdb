@@ -58,6 +58,8 @@ create_dbuser() {
     password=$3
     admin=${4:-"false"}
     admin=${admin,,} # convert to lowercase
+    readfrom=${5:-".*"}
+    writeto=${6:-"^$"}
     if [ -z "${db}" ] || [ -z "${user}" ] || [ -z "${password}" ] ; then
         echo "=> create_dbuser first 3 args are required (db, user, and password)."
         abort
@@ -93,7 +95,7 @@ create_dbuser() {
     if [ "${admin}" == "true" ]; then
         data="{\"admin\":true,\"name\":\"${user}\",\"readFrom\":\".*\",\"writeTo\":\".*\"}"
     else
-        data="{\"admin\":false,\"name\":\"${user}\",\"readFrom\":\".*\",\"writeTo\":\"^$\"}"
+        data="{\"admin\":false,\"name\":\"${user}\",\"readFrom\":\"${readfrom}\",\"writeTo\":\"${writeto}\"}"
     fi
     status=$(curl -X POST -s -o /dev/null -w "%{http_code}" "http://localhost:8086/db/${db}/users/${user}?u=root&p=${ROOT_PASSWORD}" -d "${data}")
     if test $status -eq 200; then
@@ -145,7 +147,9 @@ else
             for user in $(echo ${!dbusers_var} | tr ";" "\n"); do
                 dbuserpassword_var="${db}_${user}_PASSWORD"
                 dbuseradmin_var="${db}_${user}_ADMIN"
-                create_dbuser $db $user ${!dbuserpassword_var} ${!dbuseradmin_var}
+                dbuserreadfrom_var="${db}_${user}_READFROM"
+                dbuserwriteto_var="${db}_${user}_WRITETO"
+                create_dbuser $db $user ${!dbuserpassword_var} ${!dbuseradmin_var} ${!dbuserreadfrom_var} ${!dbuserwriteto_var}
             done
         fi
     done
