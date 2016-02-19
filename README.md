@@ -25,40 +25,39 @@ variables, see below.
 
 Required:
 
-- `ROOT_PASSWORD`: the password that must be set for the root
-  admin user.
+- `ROOT_PASSWORD`: the password that must be set for the root admin user.
 
 Optional:
 
 - `PRE_CREATE_DB`: the list of the databases to create automatically at startup
   (example: `PRE_CREATE_DB="db1;db2;db3"`)
-- `PRE_CREATE_DBUSER_<database>`: the list of the database users to create
-  automatically at startup (example: `PRE_CREATE_DBUSER_db1="user1;user2"`)
-- `<database>_<dbuser>_PASSWORD`: the password of the dbuser to create
-  for the above database (example: `db1_user1_PASSWORD="mypass"`)
-- `<database>_<dbuser>_ADMIN`: ["true" or "false"] wether the dbuser to create
-  should be granted admin rights for the above database (example:
-  `db1_user1_ADMIN=true`)
+- `PRE_CREATE_USER`: the list of users to create automatically at startup
+  (example: `PRE_CREATE_USER="user1;user2"`)
+- `<user>_PASSWORD`: the password of the user to create for the above database
+  (example: `user1_PASSWORD="mypass"`)
+- `<user>_ADMIN`: ["true" or "false"] whether the user to create should be
+  granted admin rights (example: `user1_ADMIN=true`)
+- `<db>_<user>_GRANT`: ["READ", "WRITE", or "ALL"] whether the user should be
+  granted read/write privileges to a database (example: `db1_user1_GRANT=ALL`)
 
 Then when starting your InfluxDB container, you will want to bind ports `8083`
 and `8086` from the InfluxDB container to the host external ports.
-InfluxDB container will write its `db`, `raft`, and `wal` data dirs to a data
-volume in `/data`, so you may want to bind this data volume to a host
-directory.
+InfluxDB container will write its `db`, `raft`, and `wal` data dirs to the
+`/var/lib/influxdb` directory, so you may want to bind this directory to a data
+volume or a host directory.
 
 For example:
 
     $ docker pull bbinet/influxdb
 
     $ docker run --name influxdb \
-          -v /home/influxdb/data:/data \
+          -v $(pwd)/data:/var/lib/influxdb \
+          -v $(pwd)/influxdb.conf:/etc/influxdb/influxdb.conf \
           -p 8083:8083 -p 8086:8086 \
           -e ROOT_PASSWORD=root_password \
-          -e INFLUXDB_DEFAULT_DB_NAME=metrics \
-          -e INFLUXDB_DEFAULT_DB_USER=admin \
-          -e INFLUXDB_DEFAULT_DB_PASSWORD=admin_password \
+          -e PRE_CREATE_DB="db1;db2;db3" \
+          -e PRE_CREATE_USER_db1 user1;user2" \
+          -e user1_PASSWORD="mypass" \
+          -e user1_ADMIN="true" \
+          -e db1_user2_GRANT="all" \
           bbinet/influxdb
-
-Optionally, you may want to also expose ports `8090` and `8099` to your host
-since these are used for clustering, but they should not be exposed to the
-internet. So you will add `--expose 8090 --expose 8099` to the above example.

@@ -4,6 +4,8 @@ set -m
 
 
 abort() {
+    msg="$1"
+    echo "$msg"
     echo "=> Environment was:"
     env
     echo "=> Program terminated!"
@@ -11,124 +13,114 @@ abort() {
 }
 
 check_update_root_password() {
-    # check if default root password "root" is still valid
-    status=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8086/cluster_admins?u=root&p=root")
-    if test $status -eq 200; then
-        # let's update the root password
-        status=$(curl -X POST -s -o /dev/null -w "%{http_code}" "http://localhost:8086/cluster_admins/root?u=root&p=root" -d "{\"password\": \"${ROOT_PASSWORD}\"}")
-        if test $status -eq 200; then
-            echo "=> InfluxDB root password successfully updated."
-        else
-            echo "=> Failed to update InfluxDB root password!"
-            abort
-        fi
+    # try to create the 'root' admin user
+    influx -host=${INFLUX_HOST} -port=${INFLUX_API_PORT} \
+        -execute="CREATE USER root WITH PASSWORD '${ROOT_PASSWORD}' WITH ALL PRIVILEGES" \
+         > /dev/null 2>&1 || echo "=> Admin user 'root' already exists."
+    # check if the given root password is valid
+    influx_exec "SHOW DATABASES" > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo "=> Password supplied for InfluxDB root user is ok." 
     else
-        # default root password "root" has already been changed
-        # check if the given one is valid:
-        status=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8086/cluster_admins?u=root&p=${ROOT_PASSWORD}")
-        if test $status -eq 200; then
-            echo "=> Password supplied for InfluxDB root user is already ok." 
-        else
-            echo "=> Password supplied for InfluxDB root user is wrong!"
-            abort
-        fi
+        abort "=> Password supplied for InfluxDB root user is wrong!"
     fi
 }
 
 create_db() {
     db=$1
-    curl -s "http://localhost:8086/db?u=root&p=${ROOT_PASSWORD}" | grep -q "\"name\":\"${db}\""
+    influx_exec "CREATE DATABASE $db" > /dev/null 2>&1
     if [ $? -eq 0 ]; then
-        echo "=> Database \"${db}\" already exists."
+        echo "=> Database \"${db}\" ok."
     else
-        echo "=> Creating database: ${db}"
-        status=$(curl -X POST -s -o /dev/null -w "%{http_code}" "http://localhost:8086/db?u=root&p=${ROOT_PASSWORD}" -d "{\"name\":\"${db}\"}")
-        if test $status -eq 201; then
-            echo "=> Database \"${db}\" successfully created."
-        else
-            echo "=> Failed to create database \"${db}\"!"
-            abort
-        fi
+        abort "=> Failed to create database \"${db}\"!"
     fi
 }
 
-create_dbuser() {
-    db=$1
-    user=$2
-    password=$3
-    admin=${4:-"false"}
+create_user() {
+    user=$1
+    password=$2
+    admin=${3:-"false"}
     admin=${admin,,} # convert to lowercase
-    readfrom=${5:-".*"}
-    writeto=${6:-"^$"}
-    if [ -z "${db}" ] || [ -z "${user}" ] || [ -z "${password}" ] ; then
-        echo "=> create_dbuser first 3 args are required (db, user, and password)."
-        abort
+    if [ -z "${user}" ] || [ -z "${password}" ] ; then
+        abort "=> create_user first 2 args are required (user and password)."
     fi
     if [ "${admin}" != "true" ] && [ "${admin}" != "false" ]; then
-        echo "=> Wrong value for create_dbuser admin arg: ${admin}"
-        echo "   Value should be either \"true\" or \"false\"."
-        abort
+        abort "=> Wrong value for create_user admin arg: ${admin}."
     fi
-    curl -s "http://localhost:8086/db/${db}/users?u=root&p=${ROOT_PASSWORD}" | grep -q "\"name\":\"${user}\""
+    influx_exec "CREATE USER ${user} WITH PASSWORD '${password}'" > /dev/null 2>&1
     if [ $? -eq 0 ]; then
-        echo "=> Db user \"${db}/${user}\" already exists: trying to update the password."
-        # let's update the user password
-        status=$(curl -X POST -s -o /dev/null -w "%{http_code}" "http://localhost:8086/db/${db}/users/${user}?u=root&p=${ROOT_PASSWORD}" -d "{\"password\": \"${password}\"}")
-        if test $status -eq 200; then
-            echo "=> Password for db user \"${db}/${user}\" successfully updated."
-        else
-            echo "=> Failed to update password for \"${db}/${user}\" db user!"
-            abort
-        fi
+        echo "=> User \"${user}\" ok."
     else
-        echo "=> Creating db user: \"${db}/${user}\""
-        status=$(curl -X POST -s -o /dev/null -w "%{http_code}" "http://localhost:8086/db/${db}/users?u=root&p=${ROOT_PASSWORD}" -d "{\"name\":\"${user}\", \"password\":\"${password}\"}")
-        if test $status -eq 200; then
-            echo "=> Db user \"${db}/${user}\" successfully created."
-        else
-            echo "=> Failed to create db user \"${db}/${user}\"!"
-            abort
-        fi
+        abort "=> Failed to create user \"${user}\"!"
     fi
 
     # update admin rights
     if [ "${admin}" == "true" ]; then
-        data="{\"admin\":true,\"name\":\"${user}\",\"readFrom\":\".*\",\"writeTo\":\".*\"}"
-    else
-        data="{\"admin\":false,\"name\":\"${user}\",\"readFrom\":\"${readfrom}\",\"writeTo\":\"${writeto}\"}"
+        influx_exec "GRANT ALL PRIVILEGES TO ${user}" > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            echo "=> Grant admin rights to \"${user}\" ok."
+        else
+            abort "=> Failed to grant admin rights to \"${user}\"!"
+        fi
     fi
-    status=$(curl -X POST -s -o /dev/null -w "%{http_code}" "http://localhost:8086/db/${db}/users/${user}?u=root&p=${ROOT_PASSWORD}" -d "${data}")
-    if test $status -eq 200; then
-        echo "=> Admin rights successfully updated for db user \"${db}/${user}\"."
-    else
-        echo "=> Failed to update admin rights for db user: \"${db}/${user}\""
+    # TODO: else REVOKE ALL PRIVILEGES for non admin users?
+}
+
+grant() {
+    db=$1
+    user=$2
+    privileges=$3
+    privileges=${privileges^^} # convert to uppercase
+    if [ -z "${db}" ] || [ -z "${user}" ] || [ -z "${privileges}" ] ; then
+        abort "=> grant 3 args are required (db, user and privileges)."
     fi
+    if [ "${privileges}" != "READ" ] && [ "${privileges}" != "WRITE" ] && [ "${privileges}" != "ALL" ]; then
+        abort "=> Wrong value for grant privileges arg: ${privileges}."
+    fi
+
+    influx_exec "GRANT ${privileges} ON ${db} TO ${user}" > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo "=> Grant ${privileges} on db \"${db}\" to user \"${user}\" ok."
+    else
+        abort "=> Failed to grant ${privileges} on ${db} to \"${user}\"!"
+    fi
+}
+
+influx_exec () {
+    query=$1
+    influx -host=${INFLUX_HOST} -port=${INFLUX_API_PORT} \
+        -username=root -password="${ROOT_PASSWORD}" -execute="${query}"
 }
 
 ######### MAIN #########
 
 if [ "${ROOT_PASSWORD}" == "**ChangeMe**" ]; then
-    echo "=> No password is specified for InfluxDB root user!"
-    abort
+    abort "=> No password is specified for InfluxDB root user!"
 fi
 
-CONFIG_FILE="/config/config.toml"
-MAX_OPEN_FILES=${MAX_OPEN_FILES:-32768}
+CONFIG_FILE="/etc/influxdb/influxdb.conf"
+INFLUX_HOST="localhost"
+INFLUX_API_PORT="8086"
+API_URL="http://${INFLUX_HOST}:${INFLUX_API_PORT}"
 
-# Dynamically change both ulimit value and the 'max-open-shards' value in
-# influxdb config
-ulimit -n ${MAX_OPEN_FILES}
-sed -i "s/^max-open-shards.*/max-open-shards = ${MAX_OPEN_FILES}/" ${CONFIG_FILE}
+# check that 'auth-enabled' config option is activated
+grep "^ *auth-enabled *= *true *$" ${CONFIG_FILE} > /dev/null
+if [ $? -ne 0 ]
+then
+    abort "=> \"auth-enabled\" config option should be set to \"true\"."
+fi
 
-echo "=> Starting InfluxDB ..."
-exec /usr/bin/influxdb -config=${CONFIG_FILE} &
+# echo "=> InfluxDB configuration: "
+# cat ${CONFIG_FILE}
+echo "=> Starting InfluxDB..."
+exec influxd -config=${CONFIG_FILE} &
 
-# Wait for InfluxDB to start
+echo -n "=> Waiting for InfluxDB to be ready "
 ret=1
 while [[ ret -ne 0 ]]; do
-    echo "=> Waiting for confirmation of InfluxDB service startup ..."
-    sleep 3 
-    curl -s -o /dev/null http://localhost:8086/ping
+    echo -n "."
+    sleep 3
+    curl -k ${API_URL}/ping 2> /dev/null
     ret=$?
 done
 echo ""
@@ -140,20 +132,26 @@ if [ -z "${PRE_CREATE_DB}" ]; then
 else
     for db in $(echo ${PRE_CREATE_DB} | tr ";" "\n"); do
         create_db $db
-        dbusers_var="PRE_CREATE_DBUSER_${db}"
-        if [ -z "${!dbusers_var}" ]; then
-            echo "=> No dbusers supplied for database ${db}: no user will be created."
-        else
-            for user in $(echo ${!dbusers_var} | tr ";" "\n"); do
-                dbuserpassword_var="${db}_${user}_PASSWORD"
-                dbuseradmin_var="${db}_${user}_ADMIN"
-                dbuserreadfrom_var="${db}_${user}_READFROM"
-                dbuserwriteto_var="${db}_${user}_WRITETO"
-                create_dbuser $db $user ${!dbuserpassword_var} ${!dbuseradmin_var:-"false"} ${!dbuserreadfrom_var:-".*"} ${!dbuserwriteto_var:-"^$"}
-            done
-        fi
     done
 fi
 
-fg
+if [ -z "${PRE_CREATE_USER}" ]; then
+    echo "=> No user names supplied: no user will be created."
+else
+    for user in $(echo ${PRE_CREATE_USER} | tr ";" "\n"); do
+        userpassword_var="${user}_PASSWORD"
+        useradmin_var="${user}_ADMIN"
+        create_user $user ${!userpassword_var} ${!useradmin_var:-"false"}
+    done
+fi
 
+for db in $(echo ${PRE_CREATE_DB} | tr ";" "\n"); do
+    for user in $(echo ${PRE_CREATE_USER} | tr ";" "\n"); do
+        grant_var="${db}_${user}_GRANT"
+        if [ -n "${!grant_var}" ]; then
+            grant $db $user ${!grant_var}
+        fi
+    done
+done
+
+fg
