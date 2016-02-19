@@ -56,7 +56,7 @@ For example:
           -p 8083:8083 -p 8086:8086 \
           -e ROOT_PASSWORD=root_password \
           -e PRE_CREATE_DB="db1;db2;db3" \
-          -e PRE_CREATE_USER_db1 user1;user2" \
+          -e PRE_CREATE_USER="user1;user2" \
           -e user1_PASSWORD="mypass" \
           -e user1_ADMIN="true" \
           -e db1_user2_GRANT="all" \
