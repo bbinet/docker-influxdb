@@ -14,6 +14,8 @@ RUN curl -s -o /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb https://s3.amazonaws.
   rm /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
   rm -rf /var/lib/apt/lists/*
 
+# Activate auth-enabled in influxdb config file
+RUN sed -i "s/^\( *auth-enabled *=\).*$/\1 true/" /etc/influxdb/influxdb.conf
 ADD run.sh /run.sh
 RUN chmod +x /*.sh
 
