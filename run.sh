@@ -28,6 +28,9 @@ check_update_root_password() {
 
 create_db() {
     db=$1
+    if [ -z "${db}" ]; then
+        abort "=> create_db arg is required (db)."
+    fi
     influx_exec "CREATE DATABASE $db" > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         echo "=> Database \"${db}\" ok."
@@ -39,10 +42,10 @@ create_db() {
 create_user() {
     user=$1
     password=$2
-    admin=${3:-"false"}
+    admin=$3
     admin=${admin,,} # convert to lowercase
-    if [ -z "${user}" ] || [ -z "${password}" ] ; then
-        abort "=> create_user first 2 args are required (user and password)."
+    if [ -z "${user}" ] || [ -z "${password}" ] || [ -z "${admin}" ]; then
+        abort "=> create_user 3 args are required (user, password, and admin)."
     fi
     if [ "${admin}" != "true" ] && [ "${admin}" != "false" ]; then
         abort "=> Wrong value for create_user admin arg: ${admin}."
