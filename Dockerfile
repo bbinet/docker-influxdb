@@ -1,14 +1,14 @@
 FROM debian:jessie
+
 MAINTAINER Bruno Binet <bruno.binet@gmail.com>
- 
-RUN apt-get update && \
-  DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends curl ca-certificates
 
 ENV INFLUXDB_VERSION 0.10.1-1
 ENV INFLUXDB_MD5 59a0dad806b057f7910a59208a2b385f
 
-# Install InfluxDB
-RUN curl -s -o /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb https://s3.amazonaws.com/influxdb/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt-get update && \
+  apt-get install -yq --no-install-recommends curl ca-certificates && \
+  curl -fSL -o /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb https://s3.amazonaws.com/influxdb/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
   echo "${INFLUXDB_MD5}  /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb" | md5sum --check && \
   dpkg -i /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
   rm /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
