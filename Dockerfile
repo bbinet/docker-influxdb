@@ -8,7 +8,7 @@ ENV INFLUXDB_MD5 4f0aa76fee22cf4c18e2a0779ba4f462
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && \
   apt-get install -yq --no-install-recommends curl ca-certificates && \
-  curl -fSL -o /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb https://s3.amazonaws.com/influxdb/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
+  curl -fSL -o /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb https://dl.influxdata.com/influxdb/releases/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
   echo "${INFLUXDB_MD5}  /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb" | md5sum --check && \
   dpkg -i /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
   rm /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
