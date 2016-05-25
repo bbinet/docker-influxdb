@@ -7,7 +7,7 @@ ENV INFLUXDB_VERSION nightly
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && \
   apt-get install -yq --no-install-recommends curl ca-certificates && \
-  curl -fSL -o /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb https://s3.amazonaws.com/influxdb/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
+  curl -fSL -o /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb https://dl.influxdata.com/influxdb/nightlies/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
   dpkg -i /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
   rm /tmp/influxdb_${INFLUXDB_VERSION}_amd64.deb && \
   rm -rf /var/lib/apt/lists/*
