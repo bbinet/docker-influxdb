@@ -15,7 +15,8 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/*
 
 # Activate auth-enabled in influxdb config file
-RUN sed -i "s/^\( *auth-enabled *=\).*$/\1 true/" /etc/influxdb/influxdb.conf
+RUN sed -i "s/^# \[http\]$/[http]/" /etc/influxdb/influxdb.conf
+RUN sed -i "s/\(# *auth-enabled *=\).*$/auth-enabled = true/" /etc/influxdb/influxdb.conf
 ADD run.sh /run.sh
 RUN chmod +x /*.sh
 
