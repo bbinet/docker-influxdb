@@ -2,8 +2,8 @@ FROM debian:jessie
 
 MAINTAINER Bruno Binet <bruno.binet@gmail.com>
 
-ENV INFLUXDB_VERSION 1.1.0
-ENV INFLUXDB_MD5 682904c350ecfc2a60ec9c6c08453ef2
+ENV INFLUXDB_VERSION 1.1.1
+ENV INFLUXDB_MD5 ee4147bd0827ad8c3a571924ce546994
 
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && \
